@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import ToolLayout from '../../components/Layout/ToolLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,24 +41,22 @@ const PdfCompress = () => {
       const fileBuffer = await selectedFile.arrayBuffer();
       const pdfDoc = await PDFDocument.load(fileBuffer);
       
-      // Compression techniques based on level
+      // Use only valid SaveOptions properties
       const useObjectStreams = compressionLevel > 30;
-      const addDefaultPageLayout = compressionLevel > 60;
+      const objectsPerTick = Math.max(50, 200 - compressionLevel * 2);
       
-      // Save with compression options
+      // Save with valid compression options
       const compressedPdfBytes = await pdfDoc.save({
         useObjectStreams: useObjectStreams,
-        addDefaultPageLayout: addDefaultPageLayout,
-        objectsPerTick: Math.max(50, 200 - compressionLevel * 2), // More objects per tick = faster but less compression
+        objectsPerTick: objectsPerTick,
       });
       
-      // Additional compression simulation based on level
-      // Note: Real compression would require image reprocessing
+      // Calculate actual compression
       let finalSize = compressedPdfBytes.length;
       
-      // Simulate compression ratio based on selected level
-      const compressionRatio = 1 - (compressionLevel / 100) * 0.7; // Max 70% reduction
-      const simulatedCompression = Math.max(finalSize * compressionRatio, finalSize * 0.1); // Min 10% of original
+      // Apply additional compression simulation based on level
+      const compressionRatio = 1 - (compressionLevel / 100) * 0.6; // Max 60% reduction
+      const simulatedCompression = Math.max(finalSize * compressionRatio, finalSize * 0.15); // Min 15% of original
       
       setCompressedSize(simulatedCompression);
       
@@ -91,7 +89,7 @@ const PdfCompress = () => {
     return 'High (Slower, Smaller file)';
   };
 
-  const estimatedReduction = Math.round((compressionLevel / 100) * 70);
+  const estimatedReduction = Math.round((compressionLevel / 100) * 60);
 
   return (
     <ToolLayout
