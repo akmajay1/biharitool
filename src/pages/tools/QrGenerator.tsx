@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Download, QrCode, Link, Mail, Phone, MapPin, CreditCard, User } from 'lucide-react';
+import QRCode from 'qrcode';
 import ToolLayout from '../../components/Layout/ToolLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,74 +80,26 @@ const QrGenerator = () => {
     setQrContent(content);
   }, [contentType, urlValue, textValue, emailData, phoneValue, locationData, contactData]);
   
-  const generateQRCode = () => {
+  const generateQRCode = async () => {
     if (!qrContent) {
       toast.error('Please enter content for the QR code');
       return;
     }
     
     try {
-      // Create QR code using browser's canvas capabilities
-      // This is a placeholder for the actual implementation
-      // In real-world use, you would use a library like qrcode.js or similar
+      // Generate QR code using the proper library
+      const qrDataUrl = await QRCode.toDataURL(qrContent, {
+        width: qrSize,
+        color: {
+          dark: qrColor,
+          light: qrBgColor
+        },
+        errorCorrectionLevel: 'M',
+        margin: 1
+      });
       
-      // Here's a mockup of what the implementation would look like:
-      const canvas = document.createElement('canvas');
-      canvas.width = qrSize;
-      canvas.height = qrSize;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        // Since we don't have a QR library imported, we'll simulate a QR code
-        // Draw background
-        ctx.fillStyle = qrBgColor;
-        ctx.fillRect(0, 0, qrSize, qrSize);
-        
-        // Draw a mock QR code pattern
-        ctx.fillStyle = qrColor;
-        const cellSize = Math.floor(qrSize / 25);
-        
-        // Draw a pattern that looks like a QR code
-        // This is just for demonstration, not a real QR code
-        for (let i = 0; i < 25; i++) {
-          for (let j = 0; j < 25; j++) {
-            if (Math.random() > 0.5) {
-              ctx.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
-            }
-          }
-        }
-        
-        // Fixed patterns in corners
-        // Top-left corner
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(cellSize, cellSize, 7 * cellSize, 7 * cellSize);
-        ctx.fillStyle = qrBgColor;
-        ctx.fillRect(2 * cellSize, 2 * cellSize, 5 * cellSize, 5 * cellSize);
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(3 * cellSize, 3 * cellSize, 3 * cellSize, 3 * cellSize);
-        
-        // Top-right corner
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(17 * cellSize, cellSize, 7 * cellSize, 7 * cellSize);
-        ctx.fillStyle = qrBgColor;
-        ctx.fillRect(18 * cellSize, 2 * cellSize, 5 * cellSize, 5 * cellSize);
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(19 * cellSize, 3 * cellSize, 3 * cellSize, 3 * cellSize);
-        
-        // Bottom-left corner
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(cellSize, 17 * cellSize, 7 * cellSize, 7 * cellSize);
-        ctx.fillStyle = qrBgColor;
-        ctx.fillRect(2 * cellSize, 18 * cellSize, 5 * cellSize, 5 * cellSize);
-        ctx.fillStyle = qrColor;
-        ctx.fillRect(3 * cellSize, 19 * cellSize, 3 * cellSize, 3 * cellSize);
-        
-        // Convert to image
-        const qrDataUrl = canvas.toDataURL('image/png');
-        setQrImage(qrDataUrl);
-        
-        toast.success('QR code generated successfully');
-      }
+      setQrImage(qrDataUrl);
+      toast.success('QR code generated successfully!');
     } catch (error) {
       console.error('Error generating QR code:', error);
       toast.error('Failed to generate QR code');

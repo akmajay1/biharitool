@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Download, UserRoundX, Eye } from 'lucide-react';
+import { Download, UserRoundX } from 'lucide-react';
 import ToolLayout from '../../components/Layout/ToolLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
+import { detectFaces, loadImage } from '@/utils/aiUtils';
 
 const FaceBlur = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -66,8 +67,6 @@ const FaceBlur = () => {
     setImageInfo(null);
   };
 
-  // For this demo we'll use a simple placeholder blur function
-  // In a real implementation, this would use a face detection library or API
   const blurFaces = async () => {
     if (!selectedFile || !previewUrl) {
       toast.error('Please select an image first');
@@ -76,73 +75,66 @@ const FaceBlur = () => {
 
     setLoading(true);
     try {
-      // Load the image
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = previewUrl;
-      });
+      toast.info('AI is detecting faces...');
+      
+      // Load the image and detect faces
+      const img = await loadImage(selectedFile);
+      const faces = await detectFaces(img);
+      
+      if (faces.length === 0) {
+        toast.warning('No faces detected in the image');
+        setLoading(false);
+        return;
+      }
+      
+      toast.info(`Found ${faces.length} face(s), applying blur...`);
 
       // Create a canvas
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d');
       
       if (!ctx) {
         throw new Error('Could not get canvas context');
       }
       
-      // Draw the image onto the canvas
+      // Draw the original image
       ctx.drawImage(img, 0, 0);
       
-      // For the demo, let's just blur a section in the center
-      // (In a real app, this would use face detection)
-      const centerX = img.width / 2;
-      const centerY = img.height / 3;
-      const radius = Math.min(img.width, img.height) / 4;
-      
-      // Save current state
-      ctx.save();
-      
-      // Create a circular clipping path for the face
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true);
-      ctx.closePath();
-      ctx.clip();
-      
-      // Apply blur effect to the clipped region
-      ctx.filter = `blur(${blurRadius}px)`;
-      ctx.drawImage(img, 0, 0);
-      
-      // Add a second fake "face"
-      if (img.height > 400) {
-        ctx.restore();
+      // Apply blur to each detected face
+      faces.forEach((face, index) => {
         ctx.save();
         
-        // Create another clipping path
+        // Create clipping path for the face region
         ctx.beginPath();
-        ctx.arc(centerX - 100, centerY + 120, radius * 0.7, 0, Math.PI * 2, true);
+        ctx.ellipse(
+          face.x + face.width / 2,
+          face.y + face.height / 2,
+          face.width / 2,
+          face.height / 2,
+          0,
+          0,
+          Math.PI * 2
+        );
         ctx.closePath();
         ctx.clip();
         
-        // Apply blur
+        // Apply blur effect
         ctx.filter = `blur(${blurRadius}px)`;
         ctx.drawImage(img, 0, 0);
-      }
-      
-      // Restore canvas state
-      ctx.restore();
+        
+        ctx.restore();
+      });
       
       // Convert canvas to image
       const outputUrl = canvas.toDataURL('image/png');
       setOutputUrl(outputUrl);
       
-      toast.success('Faces blurred successfully!');
+      toast.success(`Successfully blurred ${faces.length} face(s)!`);
     } catch (error) {
       console.error('Error blurring faces:', error);
-      toast.error('Failed to blur faces. Please try again.');
+      toast.error('Failed to detect or blur faces. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -187,7 +179,14 @@ const FaceBlur = () => {
 
         {/* Settings Section */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">2. Configure Settings</h2>
+          <h2 className="text-xl font-semibold mb-4">2. AI Face Detection</h2>
+          
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-medium mb-2 text-blue-800">🤖 AI-Powered Face Detection</h3>
+            <p className="text-sm text-blue-700">
+              Our AI automatically detects all faces in the image and applies precise blur effects to protect privacy.
+            </p>
+          </div>
           
           <div className="mb-6">
             <h3 className="font-medium mb-2">Blur Strength: {blurRadius}px</h3>
@@ -208,7 +207,7 @@ const FaceBlur = () => {
             disabled={!selectedFile || loading}
             className="w-full"
           >
-            {loading ? 'Processing...' : 'Blur Faces'}
+            {loading ? 'AI Detecting & Blurring...' : 'Detect & Blur Faces'}
           </Button>
         </Card>
       </div>

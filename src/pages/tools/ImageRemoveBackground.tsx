@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
+import { removeBackgroundAI, loadImage } from '@/utils/aiUtils';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
 import { useLanguage } from '@/context/LanguageContext';
 
 const ImageRemoveBackground = () => {
@@ -17,7 +17,7 @@ const ImageRemoveBackground = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tolerance, setTolerance] = useState(30);
+  
   const [imageInfo, setImageInfo] = useState<{ size: string; width: number; height: number } | null>(null);
   const [activeTab, setActiveTab] = useState<string>("result"); // Default to result tab
 
@@ -78,74 +78,22 @@ const ImageRemoveBackground = () => {
 
     setLoading(true);
     try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+      toast.info('AI is analyzing the image...');
       
-      if (!ctx) {
-        throw new Error('Could not get canvas context');
-      }
+      // Load image and use AI to remove background
+      const img = await loadImage(selectedFile);
+      const blob = await removeBackgroundAI(img);
       
-      const img = new Image();
-      img.onload = () => {
-        // Set canvas dimensions to match image
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        // Draw image onto canvas
-        ctx.drawImage(img, 0, 0);
-        
-        // Get image data
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        // Sample background color from corners (assuming background is in the corners)
-        const cornerSamples = [
-          getPixelColor(data, 0, 0, canvas.width),
-          getPixelColor(data, canvas.width - 1, 0, canvas.width),
-          getPixelColor(data, 0, canvas.height - 1, canvas.width),
-          getPixelColor(data, canvas.width - 1, canvas.height - 1, canvas.width)
-        ];
-        
-        // Find most common background color (simple approach)
-        const bgColor = cornerSamples[0]; // Simplified; could use most frequent color
-        
-        // Process each pixel
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          
-          // Check if pixel is similar to background color using tolerance
-          if (
-            Math.abs(r - bgColor.r) < tolerance &&
-            Math.abs(g - bgColor.g) < tolerance &&
-            Math.abs(b - bgColor.b) < tolerance
-          ) {
-            // Make it transparent
-            data[i + 3] = 0;
-          }
-        }
-        
-        // Put the modified image data back on the canvas
-        ctx.putImageData(imageData, 0, 0);
-        
-        // Create output URL
-        const outputUrl = canvas.toDataURL('image/png');
-        setOutputUrl(outputUrl);
-        setLoading(false);
-        setActiveTab("result"); // Automatically show result tab
-        toast.success('Background removed successfully!');
-      };
+      // Create URL for the result
+      const outputUrl = URL.createObjectURL(blob);
+      setOutputUrl(outputUrl);
+      setActiveTab("result");
       
-      img.onerror = () => {
-        setLoading(false);
-        toast.error('Failed to load image');
-      };
-      
-      img.src = previewUrl;
+      toast.success('Background removed successfully using AI!');
     } catch (error) {
       console.error('Error removing background:', error);
       toast.error('Failed to remove background. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -162,15 +110,6 @@ const ImageRemoveBackground = () => {
     toast.success('Image downloaded successfully!');
   };
 
-  // Helper function to get pixel color
-  const getPixelColor = (data: Uint8ClampedArray, x: number, y: number, width: number) => {
-    const index = (y * width + x) * 4;
-    return {
-      r: data[index],
-      g: data[index + 1],
-      b: data[index + 2]
-    };
-  };
 
   return (
     <ToolLayout
@@ -199,19 +138,12 @@ const ImageRemoveBackground = () => {
 
         {/* Settings Section */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">{t('configureSettings')}</h2>
+          <h2 className="text-xl font-semibold mb-4">2. AI Settings</h2>
           
-          <div className="mb-6">
-            <h3 className="font-medium mb-2">{t('colorTolerance')}: {tolerance}</h3>
-            <Slider 
-              value={[tolerance]} 
-              min={5} 
-              max={100} 
-              step={1}
-              onValueChange={(values) => setTolerance(values[0])} 
-            />
-            <p className="text-sm text-apple-darkgray mt-2">
-              {t('higherValues')}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-medium mb-2 text-blue-800">🤖 AI-Powered Background Removal</h3>
+            <p className="text-sm text-blue-700">
+              Our AI automatically identifies the subject and removes the background with precision. No manual adjustments needed!
             </p>
           </div>
           
@@ -220,7 +152,7 @@ const ImageRemoveBackground = () => {
             disabled={!selectedFile || loading}
             className="w-full"
           >
-            {loading ? t('processing') : t('removeBackground')}
+            {loading ? 'AI Processing...' : 'Remove Background with AI'}
           </Button>
         </Card>
       </div>

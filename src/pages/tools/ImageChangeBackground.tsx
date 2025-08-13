@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
+import { removeBackgroundAI, loadImage } from '@/utils/aiUtils';
 import { toast } from 'sonner';
-import { Download, Eye } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
+import { Download } from 'lucide-react';
 
 const backgroundOptions = [
   { id: 'white', name: 'White', color: '#ffffff' },
@@ -24,7 +24,6 @@ const ImageChangeBackground = () => {
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedBackground, setSelectedBackground] = useState(backgroundOptions[0]);
-  const [tolerance, setTolerance] = useState(30);
   const [imageInfo, setImageInfo] = useState<{ size: string; width: number; height: number } | null>(null);
 
   // Reset state when file changes
@@ -83,6 +82,13 @@ const ImageChangeBackground = () => {
 
     setLoading(true);
     try {
+      toast.info('AI is removing the background...');
+      
+      // Step 1: Use AI to remove background
+      const img = await loadImage(selectedFile);
+      const transparentBlob = await removeBackgroundAI(img);
+      
+      // Step 2: Create canvas with new background
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       
@@ -90,71 +96,33 @@ const ImageChangeBackground = () => {
         throw new Error('Could not get canvas context');
       }
       
-      const img = new Image();
-      img.onload = () => {
-        // Set canvas dimensions to match image
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        // Draw image onto canvas
-        ctx.drawImage(img, 0, 0);
-        
-        // Get image data
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        // Sample background color from corners (assuming background is in the corners)
-        const cornerSamples = [
-          getPixelColor(data, 0, 0, canvas.width),
-          getPixelColor(data, canvas.width - 1, 0, canvas.width),
-          getPixelColor(data, 0, canvas.height - 1, canvas.width),
-          getPixelColor(data, canvas.width - 1, canvas.height - 1, canvas.width)
-        ];
-        
-        // Find most common background color (simple approach)
-        const bgColor = cornerSamples[0]; // Simplified; could use most frequent color
-        
-        // Replace background color with selected background color
-        const newBgColor = hexToRgb(selectedBackground.color);
-        
-        // Process each pixel
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          
-          // Check if pixel is similar to background color using tolerance
-          if (
-            Math.abs(r - bgColor.r) < tolerance &&
-            Math.abs(g - bgColor.g) < tolerance &&
-            Math.abs(b - bgColor.b) < tolerance
-          ) {
-            // Replace with new background color
-            data[i] = newBgColor.r;
-            data[i + 1] = newBgColor.g;
-            data[i + 2] = newBgColor.b;
-          }
-        }
-        
-        // Put the modified image data back on the canvas
-        ctx.putImageData(imageData, 0, 0);
-        
-        // Create output URL
-        const outputUrl = canvas.toDataURL('image/png');
-        setOutputUrl(outputUrl);
-        setLoading(false);
-        toast.success('Background changed successfully!');
-      };
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
       
-      img.onerror = () => {
-        setLoading(false);
-        toast.error('Failed to load image');
-      };
+      // Fill with selected background color
+      ctx.fillStyle = selectedBackground.color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      img.src = previewUrl;
+      // Load the transparent image
+      const transparentImg = new Image();
+      await new Promise<void>((resolve, reject) => {
+        transparentImg.onload = () => resolve();
+        transparentImg.onerror = () => reject(new Error('Failed to load transparent image'));
+        transparentImg.src = URL.createObjectURL(transparentBlob);
+      });
+      
+      // Draw the transparent subject over the new background
+      ctx.drawImage(transparentImg, 0, 0);
+      
+      // Create output URL
+      const outputUrl = canvas.toDataURL('image/png');
+      setOutputUrl(outputUrl);
+      
+      toast.success('Background changed successfully with AI!');
     } catch (error) {
       console.error('Error changing background:', error);
       toast.error('Failed to change background. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -171,25 +139,6 @@ const ImageChangeBackground = () => {
     toast.success('Image downloaded successfully!');
   };
 
-  // Helper function to get pixel color
-  const getPixelColor = (data: Uint8ClampedArray, x: number, y: number, width: number) => {
-    const index = (y * width + x) * 4;
-    return {
-      r: data[index],
-      g: data[index + 1],
-      b: data[index + 2]
-    };
-  };
-
-  // Helper function to convert hex to rgb
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : { r: 255, g: 255, b: 255 };
-  };
 
   return (
     <ToolLayout
@@ -239,17 +188,10 @@ const ImageChangeBackground = () => {
             <p className="text-sm text-apple-darkgray mt-2">Selected: {selectedBackground.name}</p>
           </div>
           
-          <div className="mb-6">
-            <h3 className="font-medium mb-2">Color Tolerance: {tolerance}</h3>
-            <Slider 
-              value={[tolerance]} 
-              min={5} 
-              max={100} 
-              step={1}
-              onValueChange={(values) => setTolerance(values[0])} 
-            />
-            <p className="text-sm text-apple-darkgray mt-2">
-              Higher values will replace more colors similar to the background
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-medium mb-2 text-blue-800">🤖 AI-Powered Background Change</h3>
+            <p className="text-sm text-blue-700">
+              Our AI precisely identifies the subject and replaces only the background with your chosen color.
             </p>
           </div>
           
@@ -258,7 +200,7 @@ const ImageChangeBackground = () => {
             disabled={!selectedFile || loading}
             className="w-full"
           >
-            {loading ? 'Processing...' : 'Change Background'}
+            {loading ? 'AI Processing...' : 'Change Background with AI'}
           </Button>
         </Card>
       </div>

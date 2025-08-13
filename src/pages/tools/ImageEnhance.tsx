@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Download, Wand2, Sparkles } from 'lucide-react';
+import { Download, Sparkles } from 'lucide-react';
 import ToolLayout from '../../components/Layout/ToolLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
+import { upscaleImage, loadImage } from '@/utils/aiUtils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
@@ -87,32 +88,28 @@ const ImageEnhance = () => {
 
     setLoading(true);
     try {
-      // Load the image
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = previewUrl;
-      });
-
-      // Create a canvas
+      toast.info('AI is enhancing your image...');
+      
+      // Load image and apply AI upscaling if needed
+      const img = await loadImage(selectedFile);
+      const enhancedBlob = await upscaleImage(img, 1); // Keep original size for now
+      
+      // Additional processing based on enhancement type
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       
       if (!ctx) {
         throw new Error('Could not get canvas context');
       }
       
-      // Draw the image onto the canvas
-      ctx.drawImage(img, 0, 0);
+      const enhancedImg = await loadImage(enhancedBlob);
+      canvas.width = enhancedImg.naturalWidth;
+      canvas.height = enhancedImg.naturalHeight;
       
-      // Apply enhancement filters
-      // Since we can't actually implement all the filters without libraries,
-      // we'll simulate some basic enhancements
+      // Draw the enhanced image
+      ctx.drawImage(enhancedImg, 0, 0);
       
-      // Get image data
+      // Apply additional filters based on enhancement type
       let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       let data = imageData.data;
       
