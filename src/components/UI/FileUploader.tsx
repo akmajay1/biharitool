@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { Upload, X, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 
@@ -28,7 +28,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   uploadProgress,
   multiple = false
 }) => {
-  const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -44,28 +43,42 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   }, []);
   
   const validateFile = useCallback((file: File): boolean => {
-    // Check file type
-    if (acceptedFileTypes && !file.type.match(acceptedFileTypes.replace(/,/g, '|'))) {
-      toast({
-        title: "Unsupported file format",
-        description: `Please upload a ${acceptedFileTypes.replace('*', '')} file.`,
-        variant: "destructive"
-      });
+    // Check file size first
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      toast.error(`File "${file.name}" is too large. Maximum size is ${maxSizeMB} MB.`);
       return false;
     }
 
-    // Check file size
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: `File size should be less than ${maxSizeMB} MB.`,
-        variant: "destructive"
+    // Check file type if specified
+    if (acceptedFileTypes && acceptedFileTypes !== '*') {
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      const mimeType = file.type.toLowerCase();
+      
+      // Handle different accepted file type formats
+      const acceptedTypes = acceptedFileTypes.toLowerCase().split(',').map(type => type.trim());
+      
+      const isValidType = acceptedTypes.some(type => {
+        if (type.startsWith('.')) {
+          // File extension check
+          return fileExtension === type;
+        } else if (type.includes('/')) {
+          // MIME type check
+          if (type.endsWith('/*')) {
+            return mimeType.startsWith(type.replace('*', ''));
+          }
+          return mimeType === type;
+        }
+        return false;
       });
-      return false;
+
+      if (!isValidType) {
+        toast.error(`File "${file.name}" is not a supported format. Please upload: ${acceptedFileTypes}`);
+        return false;
+      }
     }
     
     return true;
-  }, [acceptedFileTypes, maxSizeMB, toast]);
+  }, [acceptedFileTypes, maxSizeMB]);
   
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -73,62 +86,118 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     setIsDragging(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (validateFile(file)) {
-        onFileSelect(file);
+      const files = Array.from(e.dataTransfer.files);
+      
+      if (multiple) {
+        files.forEach(file => {
+          if (validateFile(file)) {
+            onFileSelect(file);
+          }
+        });
+      } else {
+        const file = files[0];
+        if (validateFile(file)) {
+          onFileSelect(file);
+        }
       }
     }
-  }, [onFileSelect, validateFile]);
+  }, [onFileSelect, validateFile, multiple]);
   
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      if (validateFile(file)) {
-        onFileSelect(file);
+      const files = Array.from(e.target.files);
+      
+      if (multiple) {
+        files.forEach(file => {
+          if (validateFile(file)) {
+            onFileSelect(file);
+          }
+        });
+      } else {
+        const file = files[0];
+        if (validateFile(file)) {
+          onFileSelect(file);
+        }
       }
     }
-  }, [onFileSelect, validateFile]);
+    
+    // Reset input value to allow selecting the same file again
+    e.target.value = '';
+  }, [onFileSelect, validateFile, multiple]);
+
+  const getAcceptAttribute = () => {
+    if (!acceptedFileTypes) return undefined;
+    return acceptedFileTypes;
+  };
+
+  const getFileTypeText = () => {
+    if (acceptedFileTypes === 'image/*') return 'images';
+    if (acceptedFileTypes === '.pdf') return 'PDF files';
+    if (acceptedFileTypes.includes('.doc') || acceptedFileTypes.includes('.docx')) return 'Word documents';
+    if (acceptedFileTypes.includes('.xls') || acceptedFileTypes.includes('.xlsx')) return 'Excel files';
+    if (acceptedFileTypes.includes('.ppt') || acceptedFileTypes.includes('.pptx')) return 'PowerPoint files';
+    return 'files';
+  };
 
   return (
     <div className={`w-full ${className}`}>
       {!selectedFile ? (
         <div
-          className={`border-2 border-dashed rounded-xl px-6 py-10 text-center transition-colors ${
-            isDragging ? 'border-apple-blue bg-blue-50' : 'border-gray-300'
+          className={`border-2 border-dashed rounded-xl px-6 py-10 text-center transition-all duration-200 ${
+            isDragging 
+              ? 'border-blue-400 bg-blue-50 scale-105' 
+              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           <div className="flex flex-col items-center justify-center">
-            <Upload size={40} className="text-apple-darkgray mb-4" />
-            <p className="text-lg font-medium">Drag and drop your file here</p>
-            <p className="text-apple-darkgray mb-4">or</p>
+            <div className={`mb-4 ${isDragging ? 'animate-bounce' : ''}`}>
+              <Upload size={48} className="text-gray-400" />
+            </div>
+            <p className="text-lg font-medium mb-2">
+              {isDragging ? `Drop your ${getFileTypeText()} here` : `Drag and drop your ${getFileTypeText()}`}
+            </p>
+            <p className="text-gray-500 mb-4">or</p>
             <label htmlFor="fileInput" className="cursor-pointer">
-              <span className="apple-btn py-3">Browse files</span>
+              <span className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <FileText className="mr-2 h-4 w-4" />
+                Browse {getFileTypeText()}
+              </span>
               <input
                 id="fileInput"
                 type="file"
                 className="hidden"
                 onChange={handleFileChange}
-                accept={acceptedFileTypes}
+                accept={getAcceptAttribute()}
                 multiple={multiple}
               />
             </label>
-            <p className="text-apple-darkgray text-sm mt-4">
-              Max file size: {maxSizeMB} MB
-            </p>
+            <div className="mt-4 text-sm text-gray-500">
+              <p>Maximum file size: {maxSizeMB} MB</p>
+              {multiple && <p>You can select multiple files</p>}
+            </div>
           </div>
         </div>
       ) : (
         <div className="border rounded-xl p-6 bg-gray-50">
           <div className="flex justify-between items-center mb-3">
-            <div className="font-medium">{selectedFile.name}</div>
+            <div className="flex items-center space-x-3">
+              <FileText className="h-8 w-8 text-blue-600" />
+              <div>
+                <div className="font-medium">{selectedFile.name}</div>
+                <div className="text-sm text-gray-500">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </div>
+              </div>
+            </div>
             {onClearFile && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={onClearFile}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
                 aria-label="Remove file"
               >
                 <X size={18} />
@@ -136,8 +205,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             )}
           </div>
           
-          {typeof uploadProgress === 'number' && (
-            <Progress value={uploadProgress} className="h-2 mt-2" />
+          {typeof uploadProgress === 'number' && uploadProgress < 100 && (
+            <div className="mt-3">
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-xs text-gray-500 mt-1">{uploadProgress}% uploaded</p>
+            </div>
           )}
         </div>
       )}
