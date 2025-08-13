@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
 import { removeBackgroundAI, loadImage } from '@/utils/aiUtils';
+import { changeBackgroundColor } from '@/utils/canvasUtils';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
 

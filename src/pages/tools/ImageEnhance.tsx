@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
 import { upscaleImage, loadImage } from '@/utils/aiUtils';
+import { upscaleImageCanvas } from '@/utils/canvasUtils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 

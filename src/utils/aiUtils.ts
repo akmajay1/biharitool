@@ -1,8 +1,14 @@
 import { pipeline, env } from '@huggingface/transformers';
 
-// Configure transformers.js to always download models
+// Configure transformers.js for production deployment
 env.allowLocalModels = false;
-env.useBrowserCache = false;
+env.useBrowserCache = true;
+env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@latest/dist/';
+
+// Disable WebGPU for better compatibility
+const deviceConfig = {
+  device: 'wasm' as const
+};
 
 const MAX_IMAGE_DIMENSION = 1024;
 
@@ -40,9 +46,7 @@ function resizeImageIfNeeded(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
 export const removeBackgroundAI = async (imageElement: HTMLImageElement): Promise<Blob> => {
   try {
     console.log('Starting AI background removal...');
-    const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', {
-      device: 'webgpu',
-    });
+    const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', deviceConfig);
     
     // Convert HTMLImageElement to canvas
     const canvas = document.createElement('canvas');
@@ -123,9 +127,7 @@ export const removeBackgroundAI = async (imageElement: HTMLImageElement): Promis
 export const detectFaces = async (imageElement: HTMLImageElement): Promise<Array<{x: number, y: number, width: number, height: number}>> => {
   try {
     console.log('Starting AI face detection...');
-    const detector = await pipeline('object-detection', 'Xenova/yolos-tiny', {
-      device: 'webgpu',
-    });
+    const detector = await pipeline('object-detection', 'Xenova/yolos-tiny', deviceConfig);
     
     // Convert HTMLImageElement to canvas
     const canvas = document.createElement('canvas');

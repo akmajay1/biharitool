@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
 import { detectFaces, loadImage } from '@/utils/aiUtils';
+import { detectFacesByColor, applyBlurToRegions } from '@/utils/canvasUtils';
 
 const FaceBlur = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -75,11 +76,26 @@ const FaceBlur = () => {
 
     setLoading(true);
     try {
-      toast.info('AI is detecting faces...');
+      toast.info('Detecting faces...');
       
-      // Load the image and detect faces
       const img = await loadImage(selectedFile);
-      const faces = await detectFaces(img);
+      let faces: Array<{x: number, y: number, width: number, height: number}> = [];
+      
+      try {
+        // Try AI face detection first
+        faces = await detectFaces(img);
+        if (faces.length > 0) {
+          toast.success(`AI detected ${faces.length} face(s)!`);
+        }
+      } catch (aiError) {
+        console.warn('AI face detection failed, using fallback:', aiError);
+      }
+      
+      // Fallback to color-based detection if AI fails or finds no faces
+      if (faces.length === 0) {
+        toast.info('Using smart face detection...');
+        faces = await detectFacesByColor(img);
+      }
       
       if (faces.length === 0) {
         toast.warning('No faces detected in the image');
@@ -87,48 +103,10 @@ const FaceBlur = () => {
         return;
       }
       
-      toast.info(`Found ${faces.length} face(s), applying blur...`);
-
-      // Create a canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
+      toast.info(`Applying blur to ${faces.length} detected region(s)...`);
       
-      if (!ctx) {
-        throw new Error('Could not get canvas context');
-      }
-      
-      // Draw the original image
-      ctx.drawImage(img, 0, 0);
-      
-      // Apply blur to each detected face
-      faces.forEach((face, index) => {
-        ctx.save();
-        
-        // Create clipping path for the face region
-        ctx.beginPath();
-        ctx.ellipse(
-          face.x + face.width / 2,
-          face.y + face.height / 2,
-          face.width / 2,
-          face.height / 2,
-          0,
-          0,
-          Math.PI * 2
-        );
-        ctx.closePath();
-        ctx.clip();
-        
-        // Apply blur effect
-        ctx.filter = `blur(${blurRadius}px)`;
-        ctx.drawImage(img, 0, 0);
-        
-        ctx.restore();
-      });
-      
-      // Convert canvas to image
-      const outputUrl = canvas.toDataURL('image/png');
+      const resultBlob = await applyBlurToRegions(img, faces, blurRadius);
+      const outputUrl = URL.createObjectURL(resultBlob);
       setOutputUrl(outputUrl);
       
       toast.success(`Successfully blurred ${faces.length} face(s)!`);

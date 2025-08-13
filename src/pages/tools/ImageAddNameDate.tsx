@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUploader from '@/components/UI/FileUploader';
 import { formatFileSize } from '@/utils/imageUtils';
+import { addNameAndDate } from '@/utils/canvasUtils';
+import { loadImage } from '@/utils/aiUtils';
 import { toast } from 'sonner';
 import { Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
