@@ -24,6 +24,7 @@ const ImageEnhance = () => {
   const [saturation, setSaturation] = useState(100);
   const [sharpness, setSharpness] = useState(0);
   const [denoise, setDenoise] = useState(false);
+  const [upscaleFactor, setUpscaleFactor] = useState(2);
   const [imageInfo, setImageInfo] = useState<{ size: string; width: number; height: number } | null>(null);
 
   // Reset state when file changes
@@ -62,6 +63,7 @@ const ImageEnhance = () => {
       setSaturation(100);
       setSharpness(0);
       setDenoise(false);
+      setUpscaleFactor(2);
     } else {
       setPreviewUrl(null);
       setOutputUrl(null);
@@ -89,11 +91,11 @@ const ImageEnhance = () => {
 
     setLoading(true);
     try {
-      toast.info('AI is enhancing your image...');
+      toast.info(`AI is upscaling your image ${upscaleFactor}x...`);
       
-      // Load image and apply AI upscaling if needed
+      // Load image and apply AI upscaling
       const img = await loadImage(selectedFile);
-      const enhancedBlob = await upscaleImage(img, 1); // Keep original size for now
+      const enhancedBlob = await upscaleImage(img, upscaleFactor);
       
       // Additional processing based on enhancement type
       const canvas = document.createElement('canvas');
@@ -226,6 +228,7 @@ const ImageEnhance = () => {
     setSaturation(110);
     setSharpness(5);
     setDenoise(true);
+    setUpscaleFactor(2);
     
     toast.success('Auto-enhance settings applied');
   };
@@ -334,6 +337,23 @@ const ImageEnhance = () => {
                 onCheckedChange={(checked) => setDenoise(checked === true)}
               />
               <Label htmlFor="denoise">Reduce noise</Label>
+            </div>
+            
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-sm font-medium">AI Upscale Factor</label>
+                <span className="text-sm text-apple-darkgray">{upscaleFactor}x</span>
+              </div>
+              <Slider 
+                value={[upscaleFactor]} 
+                min={1} 
+                max={4} 
+                step={1}
+                onValueChange={(values) => setUpscaleFactor(values[0])} 
+              />
+              <div className="text-xs text-apple-darkgray mt-1">
+                1x: Original size, 2x: Double size, 4x: Quadruple size
+              </div>
             </div>
             
             <Button

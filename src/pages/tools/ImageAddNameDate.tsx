@@ -45,7 +45,7 @@ const ImageAddNameDate = () => {
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy');
   const [customDate, setCustomDate] = useState(new Date().toISOString().split('T')[0]);
   const [useCurrentDate, setUseCurrentDate] = useState(true);
-  const [position, setPosition] = useState('bottomRight');
+  const [position, setPosition] = useState('bottomCenter');
   const [fontSize, setFontSize] = useState(16);
   const [fontFamily, setFontFamily] = useState('arial');
   const [textColor, setTextColor] = useState('#000000');
@@ -136,41 +136,55 @@ const ImageAddNameDate = () => {
           dateString = formatDate(dateObj, dateFormat);
         }
         
-        // Prepare text to display
-        let displayText = nameText;
-        if (includeDate && dateString) {
-          displayText += ` - ${dateString}`;
-        }
+        // Calculate dynamic font size (4% of image width)
+        const dynamicFontSize = Math.max(Math.floor(img.width * 0.04), 20);
         
         // Configure text style
         const selectedFont = fontOptions.find(f => f.id === fontFamily)?.value || 'Arial, sans-serif';
-        ctx.font = `${fontSize}px ${selectedFont}`;
+        ctx.font = `bold ${dynamicFontSize}px ${selectedFont}`;
         ctx.fillStyle = textColor;
+        ctx.textAlign = 'center';
         
-        // Measure text width for positioning
-        const textWidth = ctx.measureText(displayText).width;
-        const textHeight = fontSize;
+        // Calculate positions for exam photo style (bottom center, full width)
+        const centerX = img.width / 2;
+        const bottomMargin = Math.max(Math.floor(img.height * 0.05), 30);
         
-        // Calculate position
-        const { x, y } = calculatePosition(position, textWidth, textHeight, img.width, img.height, padding);
+        // Position for name (higher up)
+        const nameY = img.height - bottomMargin - (includeDate ? dynamicFontSize + 10 : 0);
+        
+        // Position for date (below name)
+        const dateY = img.height - bottomMargin;
         
         // Add background if needed
         if (addBackground) {
           const bgColor = hexToRgba(backgroundColor, backgroundOpacity / 100);
           ctx.fillStyle = bgColor;
+          
+          // Calculate background dimensions
+          const nameWidth = ctx.measureText(nameText).width;
+          const dateWidth = includeDate && dateString ? ctx.measureText(dateString).width : 0;
+          const maxWidth = Math.max(nameWidth, dateWidth);
+          const bgWidth = maxWidth + padding * 2;
+          const bgHeight = dynamicFontSize * (includeDate ? 2.5 : 1.2) + padding;
+          
           ctx.fillRect(
-            x - padding, 
-            y - textHeight - padding / 2, 
-            textWidth + padding * 2, 
-            textHeight + padding * 1.5
+            centerX - bgWidth / 2,
+            nameY - dynamicFontSize - padding / 2,
+            bgWidth,
+            bgHeight
           );
           
-          // Reset text color for drawing text
+          // Reset text color
           ctx.fillStyle = textColor;
         }
         
-        // Draw text
-        ctx.fillText(displayText, x, y);
+        // Draw name
+        ctx.fillText(nameText, centerX, nameY);
+        
+        // Draw date if included
+        if (includeDate && dateString) {
+          ctx.fillText(dateString, centerX, dateY);
+        }
         
         // Create output URL
         const outputUrl = canvas.toDataURL('image/jpeg');
